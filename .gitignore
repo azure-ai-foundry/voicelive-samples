@@ -416,3 +416,19 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Ignore python virtual environments
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Ignore appsettings local files
+appsettings.Local.json
+appsettings.Development.json
+appsettings.Staging.json
+appsettings.Production.json
+appsettings.Local.*.json
+appsettings.json
