@@ -432,3 +432,16 @@ appsettings.Staging.json
 appsettings.Production.json
 appsettings.Local.*.json
 appsettings.json
+
+# Java/Maven
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+.classpath
+.project
+.settings/
+dependency-reduced-pom.xml
+application.properties
