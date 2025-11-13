@@ -6,6 +6,7 @@ This sample demonstrates how to build a sophisticated customer service voice bot
 
 ### Core Capabilities
 - **Natural Voice Conversation**: Real-time speech-to-speech interaction with proper interruption handling
+- **Proactive Greeting**: Agent initiates the conversation with a welcome message
 - **Function Calling**: Strongly-typed function definitions and execution using the VoiceLive SDK
 - **Customer Service Operations**: Complete workflows for common support scenarios
 - **Professional Voice Experience**: Optimized for customer-facing interactions

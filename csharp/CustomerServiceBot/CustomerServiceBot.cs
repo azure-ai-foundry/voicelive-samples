@@ -33,8 +33,12 @@ public class CustomerServiceBot : IDisposable
     private VoiceLiveSession? _session;
     private AudioProcessor? _audioProcessor;
     private bool _disposed;
+    // Tracks whether an assistant response is currently active (created and not yet completed)
+    private bool _responseActive;
     // Tracks whether we've already sent the initial proactive greeting to start the conversation
     private bool _conversationStarted;
+    // Tracks whether the assistant can still cancel the current response (between ResponseCreated and ResponseDone)
+    private bool _canCancelResponse;
 
     /// <summary>
     /// Initializes a new instance of the CustomerServiceBot class.
@@ -429,14 +433,42 @@ public class CustomerServiceBot : IDisposable
                     await _audioProcessor.StopPlaybackAsync().ConfigureAwait(false);
                 }
 
-                // Cancel any ongoing response
-                try
+                // Only attempt cancellation / clearing if a response is actually active
+                if (_responseActive && _canCancelResponse)
                 {
-                    await _session!.CancelResponseAsync(cancellationToken).ConfigureAwait(false);
+                    // Cancel any ongoing response (only if server may still be generating)
+                    try
+                    {
+                        await _session!.CancelResponseAsync(cancellationToken).ConfigureAwait(false);
+                        _logger.LogInformation("🛑 Active response cancelled due to customer barge-in");
+                    }
+                    catch (Exception ex)
+                    {
+                        // Treat known benign message as debug-level (server already finished response)
+                        if (ex.Message.Contains("no active response", StringComparison.OrdinalIgnoreCase))
+                        {
+                            _logger.LogDebug("Cancellation benign: response already completed");
+                        }
+                        else
+                        {
+                            _logger.LogWarning(ex, "Response cancellation failed during barge-in");
+                        }
+                    }
+
+                    // Clear any streaming audio still in transit only if response still marked active
+                    try
+                    {
+                        await _session!.ClearStreamingAudioAsync(cancellationToken).ConfigureAwait(false);
+                        _logger.LogInformation("✨ Cleared streaming audio after cancellation");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "ClearStreamingAudio call failed (may not be supported in all scenarios)");
+                    }
                 }
-                catch (Exception ex)
+                else
                 {
-                    _logger.LogDebug(ex, "No response to cancel");
+                    _logger.LogDebug("No active response to cancel during barge-in; skipping cancellation and clear operations");
                 }
                 break;
 
@@ -453,6 +485,8 @@ public class CustomerServiceBot : IDisposable
 
             case SessionUpdateResponseCreated responseCreated:
                 _logger.LogInformation("🤖 Assistant response created");
+                _responseActive = true;
+                _canCancelResponse = true; // Response can be cancelled until completion
                 break;
 
             case SessionUpdateResponseOutputItemAdded outputItemAdded:
@@ -473,6 +507,7 @@ public class CustomerServiceBot : IDisposable
             case SessionUpdateResponseAudioDone audioDone:
                 _logger.LogInformation("🤖 Assistant finished speaking");
                 Console.WriteLine("🎤 Ready for next customer inquiry...");
+                // Do NOT mark _responseActive false yet; ResponseDone may still arrive
                 break;
 
             case SessionUpdateResponseContentPartAdded partAdded:
@@ -484,6 +519,8 @@ public class CustomerServiceBot : IDisposable
                 break;
             case SessionUpdateResponseDone responseDone:
                 _logger.LogInformation("✅ Response complete");
+                _responseActive = false; // Response fully complete
+                _canCancelResponse = false; // No longer cancellable
                 break;
             case SessionUpdateResponseFunctionCallArgumentsDone functionCallArgumentsDone:
                 _logger.LogInformation("🔧 Function call arguments done for call ID: {CallId}", functionCallArgumentsDone.CallId);
@@ -507,6 +544,8 @@ public class CustomerServiceBot : IDisposable
             case SessionUpdateError errorEvent:
                 _logger.LogError("❌ VoiceLive error: {ErrorMessage}", errorEvent.Error?.Message);
                 Console.WriteLine($"Error: {errorEvent.Error?.Message}");
+                _responseActive = false;
+                _canCancelResponse = false;
                 break;
 
             default:
