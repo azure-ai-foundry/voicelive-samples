@@ -117,7 +117,7 @@ const predefinedTools = [
         "needed. Results are formatted as a source name first in square brackets, followed by the text " +
         "content, and a line with '-----' at the end of each result.",
     } as ToolDeclaration,
-    enabled: true,
+    enabled: false,
   },
   {
     id: "time",
@@ -485,7 +485,7 @@ const ChatInterface = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [isAvatar, setIsAvatar] = useState(false);
+  const [isAvatar, setIsAvatar] = useState(true);
   const [isPhotoAvatar, setIsPhotoAvatar] = useState(false);
   const [isCustomAvatar, setIsCustomAvatar] = useState(false);
   const [isDevelop, setIsDevelop] = useState(false);
