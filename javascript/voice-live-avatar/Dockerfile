@@ -8,7 +8,7 @@ RUN tdnf distro-sync -y && \
 RUN git clone https://github.com/yulin-li/aoai-realtime-audio-sdk.git
 WORKDIR /aoai-realtime-audio-sdk/javascript/standalone
 RUN git checkout feature/voice-agent
-RUN git checkout 96d2089ef0829f687abf14d52ba1aaba2e8886a9
+RUN git checkout 11e5109528af3e29286244febc15bf0b60e3cdd6
 RUN npm install && npm run build
 RUN npm pack
 
@@ -22,7 +22,7 @@ RUN tdnf distro-sync -y && \
     tdnf install -y jq && \
     tdnf clean all
 
-COPY --from=web-builder /aoai-realtime-audio-sdk/javascript/standalone/rt-client-0.5.2.tgz /web/rt-client-0.5.2.tgz
+COPY --from=web-builder /aoai-realtime-audio-sdk/javascript/standalone/rt-client-0.5.3.tgz /web/rt-client-0.5.3.tgz
 
 WORKDIR /web
 COPY package*.json ./

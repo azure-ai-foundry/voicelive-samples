@@ -7,7 +7,18 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -28,6 +39,7 @@ import {
   Voice,
   EOUDetection,
   isFunctionCallItem,
+  isMCPCallItem,
   Modality,
   RTClient,
   RTInputAudioItem,
@@ -77,6 +89,23 @@ interface PredefinedScenario {
     customized: boolean;
     avatar_name: string;
   };
+}
+
+interface MCPServerConfig {
+  id: string;
+  serverUrl: string;
+  authorization?: string;
+  serverLabel: string;
+  requireApproval: boolean;
+}
+
+interface FoundryAgentToolConfig {
+  id: string;
+  agentName: string;
+  agentVersion: string;
+  projectName: string;
+  description?: string;
+  clientId?: string;
 }
 
 interface AudioChunksForPA {
@@ -480,6 +509,23 @@ const ChatInterface = () => {
   const [avatarBackgroundImageUrl, setAvatarBackgroundImageUrl] = useState("");
   const [voiceDeploymentId, setVoiceDeploymentId] = useState("");
   const [tools, setTools] = useState<(ToolDeclaration | SystemToolDeclaration)[]>([]);
+  const [mcpServers, setMcpServers] = useState<MCPServerConfig[]>([]);
+  const [isMcpDialogOpen, setIsMcpDialogOpen] = useState(false);
+  const [newMcpServer, setNewMcpServer] = useState<Omit<MCPServerConfig, 'id'>>({
+    serverUrl: "",
+    authorization: "",
+    serverLabel: "",
+    requireApproval: false,
+  });
+  const [foundryAgentTools, setFoundryAgentTools] = useState<FoundryAgentToolConfig[]>([]);
+  const [isFoundryDialogOpen, setIsFoundryDialogOpen] = useState(false);
+  const [newFoundryTool, setNewFoundryTool] = useState<Omit<FoundryAgentToolConfig, 'id'>>({
+    agentName: "",
+    agentVersion: "",
+    projectName: "",
+    description: "",
+    clientId: "",
+  });
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentMessage, setCurrentMessage] = useState("");
   const [isRecording, setIsRecording] = useState(false);
@@ -488,6 +534,13 @@ const ChatInterface = () => {
   const [isAvatar, setIsAvatar] = useState(true);
   const [isPhotoAvatar, setIsPhotoAvatar] = useState(false);
   const [isCustomAvatar, setIsCustomAvatar] = useState(false);
+  // Scene parameters for photo avatar
+  const [sceneZoom, setSceneZoom] = useState(100.0);
+  const [scenePositionX, setScenePositionX] = useState(0.0);
+  const [scenePositionY, setScenePositionY] = useState(0.0);
+  const [sceneRotationX, setSceneRotationX] = useState(0.0);
+  const [sceneRotationY, setSceneRotationY] = useState(0.0);
+  const [sceneRotationZ, setSceneRotationZ] = useState(0.0);
   const [isDevelop, setIsDevelop] = useState(false);
   const [enableSearch, setEnableSearch] = useState(false);
   const [enablePA, setEnablePA] = useState(false);
@@ -525,6 +578,16 @@ const ChatInterface = () => {
   const settingsRef = useRef<HTMLDivElement>(null);
 
   const isEnableAvatar = isAvatar && (avatarName || photoAvatarName || customAvatarName);
+
+  // Default instructions for foundry agent tools
+  const defaultFoundryInstructions = "You are a helpful assistant with tools. Please response a short message like 'I am working on this', 'getting the information for you, please wait' before calling the function. The response can be varied based on the question.";
+
+  // Update instructions when foundry agent tools are added and instructions are empty
+  useEffect(() => {
+    if (foundryAgentTools.length > 0 && (!instructions || instructions.length === 0)) {
+      setInstructions(defaultFoundryInstructions);
+    }
+  }, [foundryAgentTools]);
 
   // Fetch configuration from /config endpoint when component loads
   useEffect(() => {
@@ -694,8 +757,12 @@ const ChatInterface = () => {
             new AzureKeyCredential(searchApiKey)
           );
         }
+        // Set default instructions if foundry agent tools are configured
+        const effectiveInstructions = foundryAgentTools.length > 0 && (!instructions || instructions.length === 0)
+          ? defaultFoundryInstructions
+          : instructions;
         const session = await clientRef.current.configure({
-          instructions: instructions?.length > 0 ? instructions : undefined,
+          instructions: effectiveInstructions?.length > 0 ? effectiveInstructions : undefined,
           input_audio_transcription: {
             model: model.includes("gpt") && model.includes("realtime")
               ? "whisper-1"
@@ -708,7 +775,24 @@ const ChatInterface = () => {
           turn_detection: turnDetection,
           voice: voice,
           avatar: getAvatarConfig(),
-          tools,
+          tools: [
+            ...tools,
+            ...mcpServers.map((mcp) => ({
+              type: "mcp" as const,
+              server_url: mcp.serverUrl,
+              authorization: mcp.authorization || undefined,
+              server_label: mcp.serverLabel,
+              require_approval: mcp.requireApproval ? "always" : "never",
+            })),
+            ...foundryAgentTools.map((tool) => ({
+              type: "foundry_agent" as const,
+              agent_name: tool.agentName,
+              agent_version: tool.agentVersion,
+              project_name: tool.projectName,
+              description: tool.description || undefined,
+              client_id: tool.clientId || undefined,
+            })),
+          ],
           temperature,
           modalities,
           input_audio_noise_reduction: useNS
@@ -830,6 +914,14 @@ const ChatInterface = () => {
         character: customAvatarName,
         customized: true,
         video: videoParams,
+        scene: {
+          zoom: sceneZoom / 100,
+          position_x: scenePositionX / 100,
+          position_y: scenePositionY / 100,
+          rotation_x: sceneRotationX * Math.PI / 180,
+          rotation_y: sceneRotationY * Math.PI / 180,
+          rotation_z: sceneRotationZ * Math.PI / 180,
+        },
       };
     } else if (isAvatar && !isCustomAvatar && !isPhotoAvatar) {
       return {
@@ -844,9 +936,65 @@ const ChatInterface = () => {
         character: photoAvatarName.split("-")[0].toLowerCase(),
         style: photoAvatarName.split("-").slice(1).join("-"),
         video: videoParams,
+        scene: {
+          zoom: sceneZoom / 100,
+          position_x: scenePositionX / 100,
+          position_y: scenePositionY / 100,
+          rotation_x: sceneRotationX * Math.PI / 180,
+          rotation_y: sceneRotationY * Math.PI / 180,
+          rotation_z: sceneRotationZ * Math.PI / 180,
+        },
       };
     } else {
       return undefined;
+    }
+  };
+
+  // Update avatar scene settings at runtime when connected
+  const updateAvatarScene = async () => {
+    if (!isConnected || !clientRef.current || !isAvatar || !isPhotoAvatar) {
+      return;
+    }
+
+    try {
+      // Build avatar config with required fields plus scene update
+      const avatarConfig = isCustomAvatar
+        ? {
+            type: "photo-avatar",
+            model: "vasa-1",
+            character: customAvatarName,
+            customized: true,
+            scene: {
+              zoom: sceneZoom / 100,
+              position_x: scenePositionX / 100,
+              position_y: scenePositionY / 100,
+              rotation_x: sceneRotationX * Math.PI / 180,
+              rotation_y: sceneRotationY * Math.PI / 180,
+              rotation_z: sceneRotationZ * Math.PI / 180,
+            },
+          }
+        : {
+            type: "photo-avatar",
+            model: "vasa-1",
+            character: photoAvatarName.split("-")[0].toLowerCase(),
+            style: photoAvatarName.split("-").slice(1).join("-"),
+            scene: {
+              zoom: sceneZoom / 100,
+              position_x: scenePositionX / 100,
+              position_y: scenePositionY / 100,
+              rotation_x: sceneRotationX * Math.PI / 180,
+              rotation_y: sceneRotationY * Math.PI / 180,
+              rotation_z: sceneRotationZ * Math.PI / 180,
+            },
+          };
+
+      // Use type assertion since scene update is a newer feature not yet in rt-client types
+      await clientRef.current.configure({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        avatar: avatarConfig as any,
+      });
+    } catch (error) {
+      console.error("Error updating avatar scene:", error);
     }
   };
 
@@ -915,7 +1063,7 @@ const ChatInterface = () => {
               }
             };
             const audioTask = async () => {
-              audioHandlerRef.current?.stopStreamingPlayback(); // stop any previous playback
+              // audioHandlerRef.current?.stopStreamingPlayback(); // stop any previous playback
               audioHandlerRef.current?.startStreamingPlayback();
               for await (const audio of content.audioChunks()) {
                 audioHandlerRef.current?.playChunk(audio, async () => {
@@ -994,6 +1142,13 @@ const ChatInterface = () => {
           referenceText.current = "";
           audioChunksForPA.current = [];
         }
+      } else if (isMCPCallItem(item)) {
+        // Run MCP call processing in background to avoid blocking UI
+        (async () => {
+          await item.waitForCompletion();
+          console.log("MCP call output:", item);
+          await clientRef.current?.generateResponse();
+        })(); 
       }
     }
     if (response.status === "failed") {
@@ -2102,6 +2257,367 @@ const ChatInterface = () => {
                         />
                       </div>
                     )}
+                    {/* MCP Tools Section */}
+                    <div className="mt-4">
+                      <div className="border rounded-md">
+                        <div className="p-2 font-medium">MCP Tools</div>
+                        <div className="border-t p-2 space-y-2">
+                          {/* List of configured MCP servers */}
+                          {mcpServers.length > 0 && (
+                            <div className="space-y-2 mb-2">
+                              {mcpServers.map((server) => (
+                                <div
+                                  key={server.id}
+                                  className="flex items-center justify-between p-2 bg-gray-50 rounded"
+                                >
+                                  <span className="text-sm">{server.serverLabel}</span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setMcpServers(mcpServers.filter((s) => s.id !== server.id));
+                                    }}
+                                    disabled={isConnected}
+                                    className="h-6 px-2 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  >
+                                    Remove
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {/* Add New MCP Server Button and Dialog */}
+                          <Dialog open={isMcpDialogOpen} onOpenChange={setIsMcpDialogOpen}>
+                            <DialogTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full"
+                                disabled={isConnected}
+                              >
+                                Add New MCP Server
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-[425px]">
+                              <DialogHeader>
+                                <DialogTitle>Add MCP Server</DialogTitle>
+                                <DialogDescription>
+                                  Configure a new MCP (Model Context Protocol) server connection.
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="grid gap-4 py-4">
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                  <Label htmlFor="serverLabel" className="text-right">
+                                    Server Label *
+                                  </Label>
+                                  <Input
+                                    id="serverLabel"
+                                    placeholder="my-mcp-server"
+                                    value={newMcpServer.serverLabel}
+                                    onChange={(e) =>
+                                      setNewMcpServer({ ...newMcpServer, serverLabel: e.target.value })
+                                    }
+                                    className="col-span-3"
+                                  />
+                                </div>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                  <Label htmlFor="serverUrl" className="text-right">
+                                    Server URL *
+                                  </Label>
+                                  <Input
+                                    id="serverUrl"
+                                    placeholder="https://example.com/mcp"
+                                    value={newMcpServer.serverUrl}
+                                    onChange={(e) =>
+                                      setNewMcpServer({ ...newMcpServer, serverUrl: e.target.value })
+                                    }
+                                    className="col-span-3"
+                                  />
+                                </div>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                  <Label htmlFor="authorization" className="text-right">
+                                    Authorization
+                                  </Label>
+                                  <Input
+                                    id="authorization"
+                                    placeholder="Bearer token or API key (optional)"
+                                    value={newMcpServer.authorization}
+                                    onChange={(e) =>
+                                      setNewMcpServer({ ...newMcpServer, authorization: e.target.value })
+                                    }
+                                    className="col-span-3"
+                                  />
+                                </div>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                  <Label htmlFor="requireApproval" className="text-right">
+                                    Require Approval
+                                  </Label>
+                                  <div className="col-span-3 flex items-center space-x-2">
+                                    <Checkbox
+                                      id="requireApproval"
+                                      checked={newMcpServer.requireApproval}
+                                      onCheckedChange={(checked: boolean | "indeterminate") =>
+                                        setNewMcpServer({ ...newMcpServer, requireApproval: checked === true })
+                                      }
+                                    />
+                                    <label
+                                      htmlFor="requireApproval"
+                                      className="text-sm text-muted-foreground"
+                                    >
+                                      Require approval before executing MCP tools
+                                    </label>
+                                  </div>
+                                </div>
+                              </div>
+                              <DialogFooter>
+                                <Button
+                                  variant="outline"
+                                  onClick={() => {
+                                    setIsMcpDialogOpen(false);
+                                    setNewMcpServer({
+                                      serverUrl: "",
+                                      authorization: "",
+                                      serverLabel: "",
+                                      requireApproval: false,
+                                    });
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  onClick={() => {
+                                    if (newMcpServer.serverUrl && newMcpServer.serverLabel) {
+                                      const newServer: MCPServerConfig = {
+                                        ...newMcpServer,
+                                        id: `mcp-${Date.now()}`,
+                                      };
+                                      setMcpServers([...mcpServers, newServer]);
+                                      setIsMcpDialogOpen(false);
+                                      setNewMcpServer({
+                                        serverUrl: "",
+                                        authorization: "",
+                                        serverLabel: "",
+                                        requireApproval: false,
+                                      });
+                                    }
+                                  }}
+                                  disabled={!newMcpServer.serverUrl || !newMcpServer.serverLabel}
+                                >
+                                  Add Server
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Foundry Agent Tool Section */}
+                    <div className="mt-4">
+                      <div className="border rounded-md">
+                        <div className="p-2 font-medium">Foundry Agent Tools</div>
+                        <div className="border-t p-2 space-y-2">
+                          {/* List of configured Foundry Agent Tools */}
+                          {foundryAgentTools.length > 0 && (
+                            <div className="space-y-2 mb-2">
+                              {foundryAgentTools.map((tool) => (
+                                <div
+                                  key={tool.id}
+                                  className="flex items-center justify-between p-2 bg-gray-50 rounded"
+                                >
+                                  <span className="text-sm">{tool.agentName}</span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setFoundryAgentTools(foundryAgentTools.filter((t) => t.id !== tool.id));
+                                    }}
+                                    disabled={isConnected}
+                                    className="h-6 px-2 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  >
+                                    Remove
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {/* Add Foundry Tool Button and Dialog */}
+                          <Dialog open={isFoundryDialogOpen} onOpenChange={setIsFoundryDialogOpen}>
+                            <DialogTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full"
+                                disabled={isConnected}
+                              >
+                                Add Foundry Tool
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-[425px]">
+                              <DialogHeader>
+                                <DialogTitle>Add Foundry Agent Tool</DialogTitle>
+                                <DialogDescription>
+                                  Configure a new Foundry Agent Tool connection.
+                                </DialogDescription>
+                              </DialogHeader>
+                              {/* Predefined Agent Buttons */}
+                              <div className="flex gap-2 mb-2">
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  className="flex-1 text-xs"
+                                  onClick={() => {
+                                    setNewFoundryTool({
+                                      agentName: "voice-live-agent-test",
+                                      agentVersion: "2",
+                                      projectName: "va-dev-fdp",
+                                      description: "You are a helpful agent that can search online information like weather, stock, flight status",
+                                      clientId: "",
+                                    });
+                                  }}
+                                >
+                                  Weather/Stock Agent
+                                </Button>
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  className="flex-1 text-xs"
+                                  onClick={() => {
+                                    setNewFoundryTool({
+                                      agentName: "voice-live-agent-knowledge",
+                                      agentVersion: "1",
+                                      projectName: "va-dev-fdp",
+                                      description: "You are a helpful agent that can search general knowledge online information",
+                                      clientId: "",
+                                    });
+                                  }}
+                                >
+                                  Knowledge Agent
+                                </Button>
+                              </div>
+                              <div className="relative">
+                                <div className="absolute inset-0 flex items-center">
+                                  <span className="w-full border-t" />
+                                </div>
+                                <div className="relative flex justify-center text-xs uppercase">
+                                  <span className="bg-background px-2 text-muted-foreground">Or configure manually</span>
+                                </div>
+                              </div>
+                              <div className="grid gap-4 py-4">
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                  <Label htmlFor="foundryAgentName" className="text-right">
+                                    Agent Name *
+                                  </Label>
+                                  <Input
+                                    id="foundryAgentName"
+                                    placeholder="my-agent"
+                                    value={newFoundryTool.agentName}
+                                    onChange={(e) =>
+                                      setNewFoundryTool({ ...newFoundryTool, agentName: e.target.value })
+                                    }
+                                    className="col-span-3"
+                                  />
+                                </div>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                  <Label htmlFor="foundryAgentVersion" className="text-right">
+                                    Agent Version *
+                                  </Label>
+                                  <Input
+                                    id="foundryAgentVersion"
+                                    placeholder="1.0.0"
+                                    value={newFoundryTool.agentVersion}
+                                    onChange={(e) =>
+                                      setNewFoundryTool({ ...newFoundryTool, agentVersion: e.target.value })
+                                    }
+                                    className="col-span-3"
+                                  />
+                                </div>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                  <Label htmlFor="foundryProjectName" className="text-right">
+                                    Project Name *
+                                  </Label>
+                                  <Input
+                                    id="foundryProjectName"
+                                    placeholder="my-project"
+                                    value={newFoundryTool.projectName}
+                                    onChange={(e) =>
+                                      setNewFoundryTool({ ...newFoundryTool, projectName: e.target.value })
+                                    }
+                                    className="col-span-3"
+                                  />
+                                </div>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                  <Label htmlFor="foundryDescription" className="text-right">
+                                    Description
+                                  </Label>
+                                  <Input
+                                    id="foundryDescription"
+                                    placeholder="Optional description"
+                                    value={newFoundryTool.description}
+                                    onChange={(e) =>
+                                      setNewFoundryTool({ ...newFoundryTool, description: e.target.value })
+                                    }
+                                    className="col-span-3"
+                                  />
+                                </div>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                  <Label htmlFor="foundryClientId" className="text-right">
+                                    Client ID
+                                  </Label>
+                                  <Input
+                                    id="foundryClientId"
+                                    placeholder="Optional client ID"
+                                    value={newFoundryTool.clientId}
+                                    onChange={(e) =>
+                                      setNewFoundryTool({ ...newFoundryTool, clientId: e.target.value })
+                                    }
+                                    className="col-span-3"
+                                  />
+                                </div>
+                              </div>
+                              <DialogFooter>
+                                <Button
+                                  variant="outline"
+                                  onClick={() => {
+                                    setIsFoundryDialogOpen(false);
+                                    setNewFoundryTool({
+                                      agentName: "",
+                                      agentVersion: "",
+                                      projectName: "",
+                                      description: "",
+                                      clientId: "",
+                                    });
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  onClick={() => {
+                                    if (newFoundryTool.agentName && newFoundryTool.agentVersion && newFoundryTool.projectName) {
+                                      const newTool: FoundryAgentToolConfig = {
+                                        ...newFoundryTool,
+                                        id: `foundry-${Date.now()}`,
+                                      };
+                                      setFoundryAgentTools([...foundryAgentTools, newTool]);
+                                      setIsFoundryDialogOpen(false);
+                                      setNewFoundryTool({
+                                        agentName: "",
+                                        agentVersion: "",
+                                        projectName: "",
+                                        description: "",
+                                        clientId: "",
+                                      });
+                                    }
+                                  }}
+                                  disabled={!newFoundryTool.agentName || !newFoundryTool.agentVersion || !newFoundryTool.projectName}
+                                >
+                                  Add Tool
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
                 <div className="space-y-2">
@@ -2356,6 +2872,89 @@ const ChatInterface = () => {
                       onChange={(e) => setAvatarBackgroundImageUrl(e.target.value)}
                       disabled={isConnected}
                     />
+                  </div>
+                )}
+                {isAvatar && isPhotoAvatar && (
+                  <div className="space-y-4 mt-4">
+                    <label className="text-sm font-medium">Scene Settings {isConnected && "(Live Adjustable)"}</label>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Zoom: {sceneZoom.toFixed(0)}%</span>
+                      </div>
+                      <Slider
+                        value={[sceneZoom]}
+                        onValueChange={(value) => setSceneZoom(value[0])}
+                        onValueCommit={() => updateAvatarScene()}
+                        min={70}
+                        max={100}
+                        step={1}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Position X: {scenePositionX.toFixed(0)}%</span>
+                      </div>
+                      <Slider
+                        value={[scenePositionX]}
+                        onValueChange={(value) => setScenePositionX(value[0])}
+                        onValueCommit={() => updateAvatarScene()}
+                        min={-50}
+                        max={50}
+                        step={1}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Position Y: {scenePositionY.toFixed(0)}%</span>
+                      </div>
+                      <Slider
+                        value={[scenePositionY]}
+                        onValueChange={(value) => setScenePositionY(value[0])}
+                        onValueCommit={() => updateAvatarScene()}
+                        min={-50}
+                        max={50}
+                        step={1}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Rotation X: {sceneRotationX.toFixed(0)} deg</span>
+                      </div>
+                      <Slider
+                        value={[sceneRotationX]}
+                        onValueChange={(value) => setSceneRotationX(value[0])}
+                        onValueCommit={() => updateAvatarScene()}
+                        min={-30}
+                        max={30}
+                        step={1}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Rotation Y: {sceneRotationY.toFixed(0)} deg</span>
+                      </div>
+                      <Slider
+                        value={[sceneRotationY]}
+                        onValueChange={(value) => setSceneRotationY(value[0])}
+                        onValueCommit={() => updateAvatarScene()}
+                        min={-30}
+                        max={30}
+                        step={1}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Rotation Z: {sceneRotationZ.toFixed(0)} deg</span>
+                      </div>
+                      <Slider
+                        value={[sceneRotationZ]}
+                        onValueChange={(value) => setSceneRotationZ(value[0])}
+                        onValueCommit={() => updateAvatarScene()}
+                        min={-30}
+                        max={30}
+                        step={1}
+                      />
+                    </div>
                   </div>
                 )}
               </AccordionContent>

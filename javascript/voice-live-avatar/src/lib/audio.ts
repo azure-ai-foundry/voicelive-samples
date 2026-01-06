@@ -26,7 +26,7 @@ export class AudioHandler {
   private circleElement: HTMLElement | null = null;
 
   private analysisNode: AnalyserNode | null = null;
-  private dataArray: Uint8Array | null = null;
+  private dataArray: Uint8Array<ArrayBuffer> | null = null;
 
   private recordAnimationFrameId: number | null = null;
   private playChunkAnimationFrameId: number | null = null;
