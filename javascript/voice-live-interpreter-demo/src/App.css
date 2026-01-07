@@ -1,0 +1,366 @@
+.app {
+  width: min(1200px, calc(100vw - 24px));
+  height: 100vh;
+  margin: 0 auto;
+  padding: 12px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  opacity: 0.95;
+}
+
+.statusText {
+  opacity: 0.8;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.dot-ok {
+  background: #2ecc71;
+  border-color: rgba(46, 204, 113, 0.6);
+}
+
+.dot-off {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+.panel {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.panelScroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 10px;
+}
+
+.panelHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  opacity: 0.85;
+  margin: 0;
+}
+
+.logToggle input {
+  width: auto;
+}
+
+.panelHeader h2 {
+  margin: 0;
+}
+
+.details {
+  margin: 10px 0 0;
+}
+
+.details summary {
+  cursor: pointer;
+  font-size: 12px;
+  opacity: 0.9;
+  margin-bottom: 10px;
+}
+
+.panel h2 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+label > span {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 10px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.15);
+  color: inherit;
+}
+
+textarea {
+  resize: vertical;
+}
+
+.row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.checkbox input {
+  width: auto;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 8px 0 14px;
+}
+
+.startRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 12px 0 16px;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.btnStart {
+  background: #2f6ee6;
+  border-color: #2f6ee6;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.btnStart:hover {
+  background: #255cc9;
+  border-color: #255cc9;
+}
+
+.btnStop {
+  background: rgba(255, 107, 107, 0.16);
+  border-color: rgba(255, 107, 107, 0.55);
+}
+
+.btnStop:hover {
+  background: rgba(255, 107, 107, 0.25);
+}
+
+.btnBig {
+  padding: 14px 24px;
+  font-size: 16px;
+}
+
+.btnReset {
+  padding: 0;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.btnReset:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.btnInline {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-decoration: underline;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.btnInline:hover {
+  opacity: 1;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.metric {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.10);
+}
+
+.metric span {
+  display: block;
+  font-size: 11px;
+  opacity: 0.85;
+  position: relative;
+}
+
+.metric .infoIcon {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 10px;
+  opacity: 0.5;
+  cursor: help;
+  transition: opacity 0.2s;
+}
+
+.metric:hover .infoIcon {
+  opacity: 0.9;
+}
+
+.metric b {
+  display: block;
+  margin-top: 6px;
+  font-size: 14px;
+}
+
+.logHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding: 8px 0;
+}
+
+.logHeader h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.log {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.10);
+  padding: 10px;
+}
+
+.logRow {
+  display: grid;
+  grid-template-columns: 95px 90px 1fr;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.logTs {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+  font-size: 12px;
+}
+
+.logLvl {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.logText {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+}
+
+.log-error .logLvl {
+  color: #ff6b6b;
+}
+
+.log-output .logLvl {
+  color: #74c0fc;
+}
+
+.log-user .logLvl {
+  color: #b197fc;
+}
+
+.log-input .logLvl {
+  color: #63e6be;
+}
+
+@media (max-width: 980px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

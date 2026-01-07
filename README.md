@@ -64,6 +64,9 @@ Python samples showcasing:
 JavaScript/TypeScript samples showcasing:
 - **Basic Web Voice Assistant**: Browser-based voice assistant with real-time streaming and barge-in support
 - **Voice Live Avatar**: Avatar-enabled voice conversations with Docker deployment
+- **Voice Live Car Demo**: Voice-Enabled Car Assistant powered by multiple architectures
+- **Voice Live Interpreter**: Real-time speech translation, speech in and speech out
+- **Voice Live Trader**: Real-time trading assistant for stock fund crypto FX trading app
 - Built with TypeScript and Web Audio API
 
 ### [Java Samples](./java/)

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Azure Voice Live - Interpreter Demo</title>
+    <script>
+      // Polyfills must exist before Vite's env.mjs runs (which processes `define` config).
+      // This inline script runs before any ES modules load.
+      if (typeof globalThis.Buffer === 'undefined') {
+        // Minimal shim; real Buffer comes from the 'buffer' package once modules load.
+        globalThis.Buffer = { isBuffer: () => false };
+      }
+      if (typeof globalThis.process === 'undefined') {
+        globalThis.process = { env: {} };
+      }
+      if (typeof globalThis.global === 'undefined') {
+        globalThis.global = globalThis;
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

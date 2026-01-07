@@ -32,6 +32,44 @@ A Dockerized sample demonstrating Azure Voice Live API with avatar integration, 
 - Azure Container Apps deployment guide
 - Developer mode for debugging
 
+### [Voice Live Car Demo](./voice-live-car-demo/)
+
+A React + Vite demo showcasing a Voice-Enabled Car Assistant powered by Azure OpenAI Realtime API.
+
+**Live Demo:** [https://novaaidesigner.github.io/azure-voice-live-for-car/](https://novaaidesigner.github.io/azure-voice-live-for-car/)
+
+**Key Features:**
+- Vehicle Control (lights, windows, temp)
+- Status Monitoring (speed, battery)
+- Media & Navigation simulation
+- Real-time EV driving cycle simulation
+- Latency and token usage benchmarking
+
+### [Voice Live Interpreter Demo](./voicelive-interpretator-demo/)
+
+A minimal Vite + React + TypeScript demo that uses **Azure Voice Live** for real-time speech translation.
+
+**Live Demo:** [https://novaaidesigner.github.io/azure-voice-live-interpreter/](https://novaaidesigner.github.io/azure-voice-live-interpreter/)
+
+**Key Features:**
+- Configurable `endpoint`, `apiKey`, `model` (defaults to `gpt-5`), and `target language`.
+- “同声传译专家” system prompt (sentence-by-sentence, context-aware translation).
+- Session window logs: ASR, translations, and event logs.
+- Benchmarks per turn: latency + token usage (also keeps totals).
+- One-click export to the **Azure Voice Live Calculator** via URL params.
+
+### [Voice Live Trader Demo](./voice-live-trader-demo/)
+
+A Web App based on Azure Speech Voice Live for real-time trading simulation.
+
+**Live Demo:** [https://novaaidesigner.github.io/voice-live-trader/](https://novaaidesigner.github.io/voice-live-trader/)
+
+**Key Features:**
+- Real-time trading assistant
+- Simulated matching engine (client-side)
+- Usage statistics (tokens/audio/network)
+- Multi-turn conversation support
+
 ## Prerequisites
 
 All samples require:
@@ -46,6 +84,9 @@ All samples require:
 |--------|--------------|
 | Basic Web Voice Assistant | [Node.js 18+](https://nodejs.org/) with npm |
 | Voice Live Avatar | [Docker](https://www.docker.com/get-started) |
+| Voice Live Car Demo | [Node.js 18+](https://nodejs.org/) with npm |
+| Voice Live Interpreter Demo | [Node.js 18+](https://nodejs.org/) with npm |
+| Voice Live Trader Demo | [Node.js 18+](https://nodejs.org/) with npm |
 
 ## Getting Started
 
