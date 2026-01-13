@@ -70,7 +70,7 @@ This sample uses [`azd`](https://learn.microsoft.com/azure/developer/azure-devel
 
 After the application has been successfully deployed you will see a URL printed to the console. Navigate to that URL to interact with the app in your browser. 
 
-Ask questions like `What is the due date of my bill?` and `What are the benefits of my card?`
+Ask questions like `What is the due date of my bill?` and `What are the benefits of my credit card?`
 
 ![Demo Screenshot](img/demo-screenshot.png)
 
