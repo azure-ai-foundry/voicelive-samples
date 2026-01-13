@@ -32,7 +32,7 @@ import { AudioHandler } from "@/lib/audio";
 import { ProactiveEventManager } from "@/lib/proactive-event-manager";
 import { int16PCMToFloat32, downsampleBuffer, float32ToInt16PCM } from "@/lib/audioConverters";
 import { Power, Send } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import {
   AvatarConfigVideoParams,
@@ -266,6 +266,46 @@ const readme = `
         - Click on the "Connect" button to start the conversation.
         - Click on the mic button to start recording audio. Click again to stop recording.
 `;
+
+let default_instructions_for_agent = 
+`You are a helpful agent. Your task is to maintain a natural conversation flow with the user, help them resolve their query in a way that's helpful, efficient, and correct, and to defer heavily to a more experienced and intelligent Foundry Agent.
+
+# General Instructions
+- You are very new and can only handle basic tasks, and will rely heavily on the Foundry Agent via the <agent_name> tool
+- By default, you must always use the <agent_name> tool to get your next response, except for very specific exceptions.
+- If the user says "hi", "hello", or similar greetings in later messages, respond naturally and briefly (e.g., "Hello!" or "Hi there!") instead of repeating the canned greeting.
+- In general, don't say the same thing twice, always vary it to ensure the conversation feels natural.
+
+# Tools
+- You can ONLY call <agent_name>
+- Even if you're provided other tools in this prompt as a reference, NEVER call them directly.
+
+# Allow List of Permitted Actions
+You can take the following actions directly, and don't need to call <agent_name> tool.
+
+## Basic chitchat
+- Handle greetings (e.g., "hello", "hi there").
+- Engage in basic chitchat (e.g., "how are you?", "thank you").
+- Respond to requests to repeat or clarify information (e.g., "can you repeat that?").
+
+# <agent_name> Usage
+- For ALL requests that are not strictly and explicitly listed above, you MUST ALWAYS use the <agent_name> tool, which will ask the Foundry Agent for a high-quality response you can use.
+- Do NOT attempt to answer, resolve, or speculate on any other requests, even if you think you know the answer or it seems simple.
+- You should make NO assumptions about what you can or can't do. Always defer to <agent_name> for all non-trivial queries.
+- Before calling <agent_name>, you MUST ALWAYS say something to the user (see the 'Sample Filler Phrases' section). Never call <agent_name> without first saying something to the user.
+  - Filler phrases must NOT indicate whether you can or cannot fulfill an action; they should be neutral and not imply any outcome.
+  - After the filler phrase YOU MUST ALWAYS call the <agent_name> tool.
+  - This is required for every use of <agent_name>, without exception. Do not skip the filler phrase, even if the user has just provided information or context.
+  - You only need to choose one filler phrase per use of <agent_name>.
+- You will use this tool extensively.
+
+# Sample Filler Phrases
+- "Just a second."
+- "Let me check."
+- "One moment."
+- "Let me look into that."
+- "Give me a moment."
+- "Let me see."`;
 
 // Define the list of available languages.
 const availableLanguages = [
@@ -541,6 +581,7 @@ const ChatInterface = () => {
   const [sceneRotationX, setSceneRotationX] = useState(0.0);
   const [sceneRotationY, setSceneRotationY] = useState(0.0);
   const [sceneRotationZ, setSceneRotationZ] = useState(0.0);
+  const [sceneAmplitude, setSceneAmplitude] = useState(100.0);
   const [isDevelop, setIsDevelop] = useState(false);
   const [enableSearch, setEnableSearch] = useState(false);
   const [enablePA, setEnablePA] = useState(false);
@@ -585,7 +626,15 @@ const ChatInterface = () => {
   // Update instructions when foundry agent tools are added and instructions are empty
   useEffect(() => {
     if (foundryAgentTools.length > 0 && (!instructions || instructions.length === 0)) {
-      setInstructions(defaultFoundryInstructions);
+      // Check if any foundry agent tool has a name to use in the instructions template
+      const firstAgentName = foundryAgentTools[0]?.agentName;
+      if (firstAgentName) {
+        // Use the detailed instructions template with the agent name
+        const customInstructions = default_instructions_for_agent.replace(/<agent_name>/g, firstAgentName);
+        setInstructions(customInstructions);
+      } else {
+        setInstructions(defaultFoundryInstructions);
+      }
     }
   }, [foundryAgentTools]);
 
@@ -693,7 +742,7 @@ const ChatInterface = () => {
                   agentId: agentId,
                   projectName: agentProjectName,
                 },
-                apiVersion: "2025-05-01-preview",
+                apiVersion: "2026-01-01-preview",
               }
             : mode === "agent-v2"
               ? {
@@ -701,11 +750,11 @@ const ChatInterface = () => {
                     agentName: agentName,
                     projectName: agentProjectName,
                   },
-                  apiVersion: "2025-05-01-preview",
+                  apiVersion: "2026-01-01-preview",
                 }
               : {
                   modelOrAgent: model,
-                  apiVersion: "2025-05-01-preview",
+                  apiVersion: "2026-01-01-preview",
                 }
         );
         console.log("Client created:", clientRef.current.connectAvatar);
@@ -921,6 +970,7 @@ const ChatInterface = () => {
           rotation_x: sceneRotationX * Math.PI / 180,
           rotation_y: sceneRotationY * Math.PI / 180,
           rotation_z: sceneRotationZ * Math.PI / 180,
+          amplitude: sceneAmplitude / 100,
         },
       };
     } else if (isAvatar && !isCustomAvatar && !isPhotoAvatar) {
@@ -943,6 +993,7 @@ const ChatInterface = () => {
           rotation_x: sceneRotationX * Math.PI / 180,
           rotation_y: sceneRotationY * Math.PI / 180,
           rotation_z: sceneRotationZ * Math.PI / 180,
+          amplitude: sceneAmplitude / 100,
         },
       };
     } else {
@@ -950,11 +1001,22 @@ const ChatInterface = () => {
     }
   };
 
+  // Ref to track the last time we sent an update (for throttling)
+  const lastSceneUpdateRef = useRef<number>(0);
+  const sceneUpdateThrottleMs = 50; // Send updates at most every 50ms
+
   // Update avatar scene settings at runtime when connected
-  const updateAvatarScene = async () => {
+  const updateAvatarScene = useCallback(async () => {
     if (!isConnected || !clientRef.current || !isAvatar || !isPhotoAvatar) {
       return;
     }
+
+    // Throttle updates to avoid overwhelming the server
+    const now = Date.now();
+    if (now - lastSceneUpdateRef.current < sceneUpdateThrottleMs) {
+      return;
+    }
+    lastSceneUpdateRef.current = now;
 
     try {
       // Build avatar config with required fields plus scene update
@@ -971,6 +1033,7 @@ const ChatInterface = () => {
               rotation_x: sceneRotationX * Math.PI / 180,
               rotation_y: sceneRotationY * Math.PI / 180,
               rotation_z: sceneRotationZ * Math.PI / 180,
+              amplitude: sceneAmplitude / 100,
             },
           }
         : {
@@ -985,6 +1048,7 @@ const ChatInterface = () => {
               rotation_x: sceneRotationX * Math.PI / 180,
               rotation_y: sceneRotationY * Math.PI / 180,
               rotation_z: sceneRotationZ * Math.PI / 180,
+              amplitude: sceneAmplitude / 100,
             },
           };
 
@@ -996,7 +1060,7 @@ const ChatInterface = () => {
     } catch (error) {
       console.error("Error updating avatar scene:", error);
     }
-  };
+  }, [isConnected, isAvatar, isPhotoAvatar, isCustomAvatar, customAvatarName, photoAvatarName, sceneZoom, scenePositionX, scenePositionY, sceneRotationX, sceneRotationY, sceneRotationZ, sceneAmplitude]);
 
   const disconnect = async () => {
     if (clientRef.current) {
@@ -1063,8 +1127,11 @@ const ChatInterface = () => {
               }
             };
             const audioTask = async () => {
-              // audioHandlerRef.current?.stopStreamingPlayback(); // stop any previous playback
-              audioHandlerRef.current?.startStreamingPlayback();
+              // Wait for any currently playing audio to finish before starting new playback
+              // await audioHandlerRef.current?.waitForPlaybackComplete();
+              if (audioHandlerRef.current?.isPlaying === false) {
+                  audioHandlerRef.current?.startStreamingPlayback();
+              }
               for await (const audio of content.audioChunks()) {
                 audioHandlerRef.current?.playChunk(audio, async () => {
                   proactiveManagerRef.current?.updateActivity("agent speaking");
@@ -2483,15 +2550,15 @@ const ChatInterface = () => {
                                   className="flex-1 text-xs"
                                   onClick={() => {
                                     setNewFoundryTool({
-                                      agentName: "voice-live-agent-knowledge",
-                                      agentVersion: "1",
+                                      agentName: "zava-inventory-file-search-no-repeat",
+                                      agentVersion: "4",
                                       projectName: "va-dev-fdp",
-                                      description: "You are a helpful agent that can search general knowledge online information",
+                                      description: "You are a product support agent for Zava that speaks to employees in a store over a headset.",
                                       clientId: "",
                                     });
                                   }}
                                 >
-                                  Knowledge Agent
+                                  Zava Inventory Agent
                                 </Button>
                               </div>
                               <div className="relative">
@@ -2883,8 +2950,10 @@ const ChatInterface = () => {
                       </div>
                       <Slider
                         value={[sceneZoom]}
-                        onValueChange={(value) => setSceneZoom(value[0])}
-                        onValueCommit={() => updateAvatarScene()}
+                        onValueChange={(value) => {
+                          setSceneZoom(value[0]);
+                          updateAvatarScene();
+                        }}
                         min={70}
                         max={100}
                         step={1}
@@ -2896,8 +2965,10 @@ const ChatInterface = () => {
                       </div>
                       <Slider
                         value={[scenePositionX]}
-                        onValueChange={(value) => setScenePositionX(value[0])}
-                        onValueCommit={() => updateAvatarScene()}
+                        onValueChange={(value) => {
+                          setScenePositionX(value[0]);
+                          updateAvatarScene();
+                        }}
                         min={-50}
                         max={50}
                         step={1}
@@ -2909,8 +2980,10 @@ const ChatInterface = () => {
                       </div>
                       <Slider
                         value={[scenePositionY]}
-                        onValueChange={(value) => setScenePositionY(value[0])}
-                        onValueCommit={() => updateAvatarScene()}
+                        onValueChange={(value) => {
+                          setScenePositionY(value[0]);
+                          updateAvatarScene();
+                        }}
                         min={-50}
                         max={50}
                         step={1}
@@ -2922,8 +2995,10 @@ const ChatInterface = () => {
                       </div>
                       <Slider
                         value={[sceneRotationX]}
-                        onValueChange={(value) => setSceneRotationX(value[0])}
-                        onValueCommit={() => updateAvatarScene()}
+                        onValueChange={(value) => {
+                          setSceneRotationX(value[0]);
+                          updateAvatarScene();
+                        }}
                         min={-30}
                         max={30}
                         step={1}
@@ -2935,8 +3010,10 @@ const ChatInterface = () => {
                       </div>
                       <Slider
                         value={[sceneRotationY]}
-                        onValueChange={(value) => setSceneRotationY(value[0])}
-                        onValueCommit={() => updateAvatarScene()}
+                        onValueChange={(value) => {
+                          setSceneRotationY(value[0]);
+                          updateAvatarScene();
+                        }}
                         min={-30}
                         max={30}
                         step={1}
@@ -2948,10 +3025,27 @@ const ChatInterface = () => {
                       </div>
                       <Slider
                         value={[sceneRotationZ]}
-                        onValueChange={(value) => setSceneRotationZ(value[0])}
-                        onValueCommit={() => updateAvatarScene()}
+                        onValueChange={(value) => {
+                          setSceneRotationZ(value[0]);
+                          updateAvatarScene();
+                        }}
                         min={-30}
                         max={30}
+                        step={1}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Amplitude: {sceneAmplitude.toFixed(0)}%</span>
+                      </div>
+                      <Slider
+                        value={[sceneAmplitude]}
+                        onValueChange={(value) => {
+                          setSceneAmplitude(value[0]);
+                          updateAvatarScene();
+                        }}
+                        min={10}
+                        max={100}
                         step={1}
                       />
                     </div>

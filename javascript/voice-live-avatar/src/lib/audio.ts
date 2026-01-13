@@ -6,7 +6,7 @@ export class AudioHandler {
   private readonly sampleRate = 24000;
 
   private nextPlayTime: number = 0;
-  private isPlaying: boolean = false;
+  public isPlaying: boolean = false;
   private playbackQueue: AudioBufferSourceNode[] = [];
 
   // Timeline-based recording properties
@@ -141,6 +141,28 @@ export class AudioHandler {
     } else {
       this.lastOutputRecordedTime = 0;
     }
+  }
+
+  /**
+   * Wait for the current playback queue to finish playing.
+   * Returns immediately if no audio is currently queued.
+   */
+  async waitForPlaybackComplete(): Promise<void> {
+    if (this.playbackQueue.length === 0) {
+      return;
+    }
+
+    return new Promise<void>((resolve) => {
+      const checkPlaybackComplete = () => {
+        if (this.playbackQueue.length === 0) {
+          resolve();
+        } else {
+          // Check again after a short delay
+          setTimeout(checkPlaybackComplete, 10);
+        }
+      };
+      checkPlaybackComplete();
+    });
   }
 
   playChunk(chunk: Uint8Array, onChunkPlayed: () => Promise<void>) {
